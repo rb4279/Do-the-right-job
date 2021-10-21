@@ -9,6 +9,7 @@ from selenium.webdriver.chrome.options import Options
 import chromedriver_autoinstaller
 import time
 
+from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
@@ -28,10 +29,15 @@ class CrawlBot:
 
     def open_window(self):
         options = Options()
+        options.add_argument('headless')
+        options.add_argument('window-size=1920x1080')
+        options.add_argument("disable-gpu")
 
         chromedriver_autoinstaller.install(True)
         chrome_ver = chromedriver_autoinstaller.get_chrome_version().split('.')[0]
-        self.driver = webdriver.Chrome(f'./{chrome_ver}/chromedriver', options=options)
+        service = Service(f'./{chrome_ver}/chromedriver')
+
+        self.driver = webdriver.Chrome(service=service, options=options)
 
     def go(self, url: str):
         self.driver.get(url)
@@ -76,17 +82,28 @@ class ListCrawlBot(CrawlBot):
 
 
 class DetailCrawlBot(CrawlBot):
-    employment_infos = []
+    target_links = []
 
-    def __init__(self, _employment_infos):
-        self.employment_infos = _employment_infos
+    def __init__(self, _target_links):
+        self.target_links = _target_links
 
-    def get_employment_infos_count(self):
-        return len(self.employment_infos)
+    def get_target_links_count(self):
+        return len(self.target_links)
 
-    def run_crawl(self):
-        pass
+    def run_crawl(self, detail_list):
+        self.open_window()
+        for target_link in self.target_links:
+            self.go(target_link)
+            job = self.find('#content > div.company-detail > div.leftBox > div.empdetail > table:nth-child(2) > tbody > tr:nth-child(1) > td').text
+            address = self.find('#content > div.company-detail > div.leftBox > div.inner > div.detail-table > table > tbody > tr:nth-child(5) > td').text
+            contents = self.find('#content > div.company-detail > div.leftBox > div.empdetail > table:nth-child(2) > tbody > tr:nth-child(3) > td').text
+            detail_list.append({
+                'job': job,
+                'address': address,
+                'contents': contents,
+            })
 
+        print('crawl done')
 
 class JobCodeCrawlBot(CrawlBot):
     URL_FORM = "https://www.worktogether.or.kr/jobMap/jobMapByName.do?jobCd={job_code}"
@@ -105,34 +122,59 @@ class JobCodeCrawlBot(CrawlBot):
         return job_infos
 
 
+class DataLoader:
+    @staticmethod
+    def load_links():
+        try:
+            with open('job_detail_links.json', 'r', encoding='UTF-8') as f:
+                dump_line = f.readline()
+                links = json.loads(dump_line)
+            return links
+        except FileNotFoundError as e:
+            list_crawl_bot = ListCrawlBot()
+            detail_links = list_crawl_bot.run_crawl()
+
+            with open('job_detail_links.json', 'w', encoding='UTF-8') as f:
+                f.write(json.dumps(detail_links, ensure_ascii=False))
+            list_crawl_bot.done()
+            return detail_links
+
+    @staticmethod
+    def load_job_code_infos():
+        try:
+            with open('job_code_infos.json', 'r', encoding='UTF-8') as f:
+                dump_line = f.readline()
+                links = json.loads(dump_line)
+            return links
+        except FileNotFoundError as e:
+            job_bot = JobCodeCrawlBot()
+            job_code_infos = job_bot.run_crawl()
+
+            with open('job_code_infos.json', 'w', encoding='UTF-8') as f:
+                f.write(json.dumps(job_code_infos, ensure_ascii=False))
+            job_bot.done()
+            return job_code_infos
+
+    @staticmethod
+    def load_job_detail_infos():
+        detail_links = DataLoader.load_links()
+        SIZE = math.ceil(len(detail_links) / WINDOW_NUM)
+        bots = []
+        threads = []
+        for i in range(WINDOW_NUM):
+            bot = DetailCrawlBot(detail_links[i * SIZE:(i + 1) * SIZE])
+            bots.append(bot)
+
+        detail_list = []
+        for bot in bots:
+            t = threading.Thread(target=bot.run_crawl, args=(detail_list,))
+            t.start()
+            threads.append(t)
+
+        for t in threads:
+            t.join()
+        return detail_links
+
+
 if __name__ == "__main__":
-    list_crawl_bot = ListCrawlBot()
-    detail_links = list_crawl_bot.run_crawl()
-    list_crawl_bot.done()
-
-    job_bot = JobCodeCrawlBot()
-    job_code_infos = job_bot.run_crawl()
-    job_bot.done()
-
-    with open('job_detail_links.txt', 'w', encoding='UTF-8') as f:
-        f.write(json.dumps(detail_links, ensure_ascii=False))
-    with open('job_code_infos.txt', 'w', encoding='UTF-8') as f:
-        f.write(json.dumps(job_code_infos, ensure_ascii=False))
-    # SIZE = len(user_infos) // WINDOW_NUM
-    # REMAINDER = math.ceil(len(user_infos) / WINDOW_NUM - SIZE)
-    # bots = []
-    # threads = []
-    # for i in range(WINDOW_NUM):
-    #     index = SIZE if i == WINDOW_NUM - 1 else SIZE + REMAINDER
-    #     bot = DetailCrawlBot(num=i)
-    #     bots.append(bot)
-    #
-    # for bot in bots:
-    #     print(bot.port, '포트에서', bot.get_user_infos_count(), '개 채용정보 수집을 시작합니다.')
-    #     t = threading.Thread(target=bot.run_draw)
-    #     t.start()
-    #     threads.append(t)
-    #     time.sleep(2)
-    #
-    # for t in threads:
-    #     t.join()  # 스레드가 종료될 때까지 기다린다.
+    DataLoader.load_job_detail_infos()
