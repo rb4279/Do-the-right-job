@@ -13,6 +13,7 @@ from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
+from selenium.common.exceptions import UnexpectedAlertPresentException
 
 WINDOW_NUM = 4
 lock = threading.Lock()
@@ -93,15 +94,19 @@ class DetailCrawlBot(CrawlBot):
     def run_crawl(self, detail_list):
         self.open_window()
         for target_link in self.target_links:
-            self.go(target_link)
-            job = self.find('#content > div.company-detail > div.leftBox > div.empdetail > table:nth-child(2) > tbody > tr:nth-child(1) > td').text
-            address = self.find('#content > div.company-detail > div.leftBox > div.inner > div.detail-table > table > tbody > tr:nth-child(5) > td').text
-            contents = self.find('#content > div.company-detail > div.leftBox > div.empdetail > table:nth-child(2) > tbody > tr:nth-child(3) > td').text
-            detail_list.append({
-                'job': job,
-                'address': address,
-                'contents': contents,
-            })
+            try:
+                self.go(target_link)
+                job = self.find('#content > div.company-detail > div.leftBox > div.empdetail > table:nth-child(2) > tbody > tr:nth-child(1) > td').text
+                address = self.find('#content > div.company-detail > div.leftBox > div.inner > div.detail-table > table > tbody > tr:nth-child(5) > td').text
+                contents = self.find('#content > div.company-detail > div.leftBox > div.empdetail > table:nth-child(2) > tbody > tr:nth-child(3) > td').text
+                detail_list.append({
+                    'job': job,
+                    'address': address,
+                    'contents': contents,
+                })
+            except UnexpectedAlertPresentException:
+                # 마감된 채용 정보 얼럿이 뜨는 경우 패스
+                continue
 
         print('crawl done')
 
@@ -173,7 +178,9 @@ class DataLoader:
 
         for t in threads:
             t.join()
-        return detail_links
+        with open('job_detail_list.json', 'w', encoding='UTF-8') as f:
+                f.write(json.dumps(detail_list, ensure_ascii=False))
+        return detail_list
 
 
 if __name__ == "__main__":
