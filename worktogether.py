@@ -99,10 +99,27 @@ class DetailCrawlBot(CrawlBot):
                 job = self.find('#content > div.company-detail > div.leftBox > div.empdetail > table:nth-child(2) > tbody > tr:nth-child(1) > td').text
                 address = self.find('#content > div.company-detail > div.leftBox > div.inner > div.detail-table > table > tbody > tr:nth-child(5) > td').text
                 contents = self.find('#content > div.company-detail > div.leftBox > div.empdetail > table:nth-child(2) > tbody > tr:nth-child(3) > td').text
+                space = self.find('#content > div.company-detail > div.leftBox > div.empdetail > table:nth-child(4) > tbody > tr:nth-child(8) > td > p:nth-child(1)').text.split(':')[1]
+                power = self.find('#content > div.company-detail > div.leftBox > div.empdetail > table:nth-child(4) > tbody > tr:nth-child(8) > td > p:nth-child(2)').text.split(':')[1]
+                walk = self.find('#content > div.company-detail > div.leftBox > div.empdetail > table:nth-child(4) > tbody > tr:nth-child(8) > td > p:nth-child(3)').text.split(':')[1]
+                talk = self.find('#content > div.company-detail > div.leftBox > div.empdetail > table:nth-child(4) > tbody > tr:nth-child(8) > td > p:nth-child(4)').text.split(':')[1]
+                eyesight = self.find('#content > div.company-detail > div.leftBox > div.empdetail > table:nth-child(4) > tbody > tr:nth-child(8) > td > p:nth-child(5)').text.split(':')[1]
+                hand = self.find('#content > div.company-detail > div.leftBox > div.empdetail > table:nth-child(4) > tbody > tr:nth-child(8) > td > p:nth-child(6)').text.split(':')[1]
+                both_hands = self.find('#content > div.company-detail > div.leftBox > div.empdetail > table:nth-child(4) > tbody > tr:nth-child(8) > td > p:nth-child(7)').text.split(':')[1]
+
                 detail_list.append({
                     'job': job,
                     'address': address,
                     'contents': contents,
+                    'env': {
+                        'space': space if '선택 안함' not in space else None,
+                        'power': power if '선택 안함' not in power else None,
+                        'walk': walk if '선택 안함' not in walk else None,
+                        'talk': talk if '선택 안함' not in talk else None,
+                        'eyesight': eyesight if '선택 안함' not in eyesight else None,
+                        'hand': hand if '선택 안함' not in hand else None,
+                        'bothHands': both_hands if '선택 안함' not in both_hands else None
+                    }
                 })
             except UnexpectedAlertPresentException:
                 # 마감된 채용 정보 얼럿이 뜨는 경우 패스
