@@ -4,6 +4,12 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 import pandas as pd
 import json
+import re
+
+class Util:
+    @staticmethod
+    def check_str_length(str):
+        return len(str) > 1
 
 class ContentProcessor:
     @staticmethod
@@ -12,13 +18,27 @@ class ContentProcessor:
 
         with open('job_detail_list.json', 'r',encoding='UTF-8') as f:
             json_data = json.load(f)
+
+        with open('job_code_infos.json', 'r',encoding='UTF-8') as c:
+            code_data = json.load(c)
+
+        code_dict = {}
+
+        for code in code_data:
+            items = re.findall('\(([^)]+)', code['name'])
+            code_dict[items[0]] = ' '.join(code['descriptions'])
         
         for data in json_data:
-            sample = kkma.nouns(data['job'] + ' ' + data['contents'] + ' ' + data['name'])
-            data['nouns'] = sample
+            sample_str = data['job'] + ' ' + data['name']
+            try:
+                sample_str += code_dict[data['code']]
+            except:
+                pass
+            sample = kkma.nouns(sample_str)
+            data['nouns'] = list(filter(Util.check_str_length, sample))
         
         with open('konl_job_detail0.json', 'w', encoding='utf-8') as make_file:
-                json.dump(json_data, make_file,ensure_ascii=False, indent="\t")
+            json.dump(json_data, make_file,ensure_ascii=False, indent="\t")
 
 class SimilarityAnalyzer:
     @staticmethod
@@ -82,5 +102,5 @@ class Recommender:
 
 if __name__ == "__main__":
     ContentProcessor.split_content()
-    SimilarityAnalyzer.analyze()
-    Recommender.recommend(2)
+    # SimilarityAnalyzer.analyze()
+    # Recommender.recommend(2)
