@@ -13,6 +13,7 @@ from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
+from selenium.common.exceptions import UnexpectedAlertPresentException
 
 WINDOW_NUM = 4
 lock = threading.Lock()
@@ -90,18 +91,92 @@ class DetailCrawlBot(CrawlBot):
     def get_target_links_count(self):
         return len(self.target_links)
 
+    def convert_env(self, key, target_text):
+        if key == 'space':
+            if target_text == '실외':
+                return 0
+            elif target_text == '실내':
+                return 1
+        elif key == 'power':
+            if target_text == '5Kg 이내의 물건을 다룸':
+                return 2
+            elif target_text == '5~20Kg의 물건을 다룸':
+                return 1
+            elif target_text == '20Kg 이상의 물건을 다룸':
+                return 0
+        elif key == 'walk':
+            if target_text == '오랫동안 서거나 걷는 일':
+                return 0
+            elif target_text == '일부 서서 하는 일':
+                return 1
+            elif target_text == '서거나 걷는 일 거의 없음':
+                return 2
+        elif key == 'talk':
+            if target_text == '듣고 말하는 작업 거의 없음':
+                return 0
+            elif target_text == '간단한 듣고 말하기 필요':
+                return 1
+            elif target_text == '듣고 말하기 중요':
+                return 2
+        elif key == 'eyesight':
+            if target_text == '비교적 큰 인쇄물을 읽을 수 있는 정도':
+                return 0
+            elif target_text == '일상적인 활동이 가능한 정도':
+                return 1
+            elif target_text == '아주 작은 글씨를 읽을 수 있는 정도':
+                return 2
+        elif key == 'hand':
+            if target_text == '큰 물품의 조립작업':
+                return 0
+            elif target_text == '작은 물품의 조립작업':
+                return 1
+            elif target_text == '정밀한 작업':
+                return 2
+        elif key == 'bothHands':
+            if target_text == '한 손으로 보조하는 작업':
+                return 0
+            elif target_text == '한 손으로 작업':
+                return 1
+            elif target_text == '양손으로 작업':
+                return 2
+        return None
+
+
     def run_crawl(self, detail_list):
         self.open_window()
         for target_link in self.target_links:
-            self.go(target_link)
-            job = self.find('#content > div.company-detail > div.leftBox > div.empdetail > table:nth-child(2) > tbody > tr:nth-child(1) > td').text
-            address = self.find('#content > div.company-detail > div.leftBox > div.inner > div.detail-table > table > tbody > tr:nth-child(5) > td').text
-            contents = self.find('#content > div.company-detail > div.leftBox > div.empdetail > table:nth-child(2) > tbody > tr:nth-child(3) > td').text
-            detail_list.append({
-                'job': job,
-                'address': address,
-                'contents': contents,
-            })
+            try:
+                self.go(target_link)
+                name = self.find('#content > div.company-detail > div.leftBox > p.tit').text
+                job = self.find('#content > div.company-detail > div.leftBox > div.empdetail > table:nth-child(2) > tbody > tr:nth-child(1) > td').text
+                address = self.find('#content > div.company-detail > div.leftBox > div.inner > div.detail-table > table > tbody > tr:nth-child(5) > td').text
+                contents = self.find('#content > div.company-detail > div.leftBox > div.empdetail > table:nth-child(2) > tbody > tr:nth-child(3) > td').text
+                space = self.find('#content > div.company-detail > div.leftBox > div.empdetail > table:nth-child(4) > tbody > tr:nth-child(8) > td > p:nth-child(1)').text.split(': ')[1]
+                power = self.find('#content > div.company-detail > div.leftBox > div.empdetail > table:nth-child(4) > tbody > tr:nth-child(8) > td > p:nth-child(2)').text.split(': ')[1]
+                walk = self.find('#content > div.company-detail > div.leftBox > div.empdetail > table:nth-child(4) > tbody > tr:nth-child(8) > td > p:nth-child(3)').text.split(': ')[1]
+                talk = self.find('#content > div.company-detail > div.leftBox > div.empdetail > table:nth-child(4) > tbody > tr:nth-child(8) > td > p:nth-child(4)').text.split(': ')[1]
+                eyesight = self.find('#content > div.company-detail > div.leftBox > div.empdetail > table:nth-child(4) > tbody > tr:nth-child(8) > td > p:nth-child(5)').text.split(': ')[1]
+                hand = self.find('#content > div.company-detail > div.leftBox > div.empdetail > table:nth-child(4) > tbody > tr:nth-child(8) > td > p:nth-child(6)').text.split(': ')[1]
+                both_hands = self.find('#content > div.company-detail > div.leftBox > div.empdetail > table:nth-child(4) > tbody > tr:nth-child(8) > td > p:nth-child(7)').text.split(': ')[1]
+
+                detail_list.append({
+                    'name': name,
+                    'job': job,
+                    'address': address,
+                    'contents': contents,
+                    'env': {
+                        'space': self.convert_env('space', space),
+                        'power': self.convert_env('power', power),
+                        'walk': self.convert_env('walk', walk),
+                        'talk': self.convert_env('talk', talk),
+                        'eyesight': self.convert_env('eyesight', eyesight),
+                        'hand': self.convert_env('hand', hand),
+                        'bothHands': self.convert_env('bothHands', both_hands)
+                    }
+                })
+            except UnexpectedAlertPresentException:
+                # 마감된 채용 정보 얼럿이 뜨는 경우 패스
+                continue
 
         print('crawl done')
 
@@ -173,7 +248,9 @@ class DataLoader:
 
         for t in threads:
             t.join()
-        return detail_links
+        with open('job_detail_list.json', 'w', encoding='UTF-8') as f:
+                f.write(json.dumps(detail_list, ensure_ascii=False))
+        return detail_list
 
 
 if __name__ == "__main__":
