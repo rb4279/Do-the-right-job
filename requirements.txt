@@ -21,6 +21,7 @@ ptyprocess==0.7.0
 pycparser==2.20
 Pygments==2.10.0
 pyOpenSSL==21.0.0
+scikit-learn==1.0.1
 selenium==4.0.0
 six==1.16.0
 sniffio==1.2.0
