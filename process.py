@@ -48,11 +48,21 @@ class ContentProcessor:
 class SimilarityAnalyzer:
     @staticmethod
     def export_csv(list, name):
-        tfidf_vectorizer = TfidfVectorizer(min_df=1,analyzer= 'word')
+        tfidf_vectorizer = TfidfVectorizer(min_df=4,ngram_range = (1,10),analyzer= 'word')
         tfidf_matrix = tfidf_vectorizer.fit_transform(list).toarray()                ## toarray 추가
+
+        # from sklearn.preprocessing import Normalizer
+
+        # transformer = Normalizer()
+        # norm_tfidf_matrix = transformer.transform(tfidf_matrix)
+
+        for tf_idx in range(len(tfidf_matrix)):  # 어떻게 할지 몰라서 0벡터를 살려두었음
+            if sum(tfidf_matrix[tf_idx])==0:
+                tfidf_matrix[tf_idx][0] = 0.01 
 
         df1 = pd.DataFrame(tfidf_matrix)
         df1.to_csv('tfidf_job_' + name + '.csv')
+
 
         cosine_sim = cosine_similarity(tfidf_matrix, tfidf_matrix)
         df2 = pd.DataFrame(cosine_sim)
@@ -111,9 +121,10 @@ class Recommender:
             json_data = json.load(f)
         
         tfidf_vector = pd.read_csv('tfidf_job_detail0.csv')
-        vector = tfidf_vector.iloc[:, 1:].values
+        cos_vector = pd.read_csv('cossim_job_detail0.csv')
+        vector = cos_vector.iloc[:, 1:].values
 
-        cluster = AgglomerativeClustering(n_clusters=100, affinity='euclidean', linkage='ward')
+        cluster = AgglomerativeClustering(n_clusters=300)
         cluster_list = cluster.fit_predict(vector)
 
         index_list = np.where(cluster_list == cluster_list[job_index])[0]  # 일단 자신포함
@@ -121,9 +132,39 @@ class Recommender:
         # print([[json_data[i]['job']] for i in index_list])
         for i in index_list :
             print( json_data[i]['name'] + '  ,  ' + json_data[i]['job'] )
+
+        from sklearn.metrics import silhouette_samples, silhouette_score
+        average_score = silhouette_score(vector, cluster_list)
+        print('Silhouette Analysis Score:{0:.3f}'.format(average_score))
+    
+    @staticmethod
+    def recommend_KM(job_index):
+        with open('job_detail_list.json', 'r',encoding='UTF-8') as f:
+            json_data = json.load(f)
         
+        tfidf_vector = pd.read_csv('tfidf_job_detail0.csv')
+        cos_vector = pd.read_csv('cossim_job_detail0.csv')
+        vector = cos_vector.iloc[:, 1:].values
+
+        cluster = AgglomerativeClustering(n_clusters=300)
+        cluster_list = cluster.fit_predict(vector)
+
+        index_list = np.where(cluster_list == cluster_list[job_index])[0]  # 일단 자신포함
+        print(json_data[job_index])
+        # print([[json_data[i]['job']] for i in index_list])
+        for i in index_list :
+            print( json_data[i]['name'] + '  ,  ' + json_data[i]['job'] )
+
+        from sklearn.metrics import silhouette_samples, silhouette_score
+        average_score = silhouette_score(vector, cluster_list)
+        print('Silhouette Analysis Score:{0:.3f}'.format(average_score))
 
 if __name__ == "__main__":
     # ContentProcessor.split_content()
     # SimilarityAnalyzer.analyze()
-    Recommender.recommend_AC(0)
+    Recommender.recommend_AC(100)
+    Recommender.recommend_KM(100)
+
+    # Recommender.recommend_cossin(100)
+
+    
